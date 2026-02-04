@@ -1,0 +1,24 @@
+.analytics-page {
+  padding: 1rem 0;
+}
+
+.text-muted {
+  color: var(--text-light);
+  font-style: italic;
+}
+
+pre {
+  background-color: var(--bg-light);
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.9rem;
+}
+
+.analytics-page ul {
+  margin-left: 1.5rem;
+}
+
+.analytics-page ul li {
+  margin-bottom: 0.5rem;
+}

@@ -1,0 +1,48 @@
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Environment variables
+.env
+.env.local
+
+# Storage (but keep directories)
+storage/audio/*
+storage/handwriting/*
+storage/reports/*
+!storage/audio/.gitkeep
+!storage/handwriting/.gitkeep
+!storage/reports/.gitkeep
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
