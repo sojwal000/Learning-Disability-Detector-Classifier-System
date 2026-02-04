@@ -141,7 +141,8 @@ def get_student_tests(
             detail="Not authorized to access this student's tests"
         )
     
-    tests = db.query(TestResult).filter(TestResult.student_id == student_id).all()
+    # Return tests sorted by most recent first
+    tests = db.query(TestResult).filter(TestResult.student_id == student_id).order_by(TestResult.completed_at.desc()).all()
     return tests
 
 @router.get("/{test_id}", response_model=TestResultResponse)

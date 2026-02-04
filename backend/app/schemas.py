@@ -51,6 +51,19 @@ class StudentResponse(StudentBase):
     class Config:
         from_attributes = True
 
+# ML Prediction Schemas
+class PredictionResponse(BaseModel):
+    id: int
+    test_result_id: int
+    prediction_class: str
+    confidence_score: float
+    risk_level: str
+    features_used: Optional[Dict[str, Any]] = None
+    predicted_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 # Test Schemas
 class TestSubmission(BaseModel):
     student_id: int
@@ -66,6 +79,9 @@ class TestResultResponse(BaseModel):
     errors: Optional[int] = None
     time_taken: Optional[int] = None
     completed_at: datetime
+    test_data: Optional[Dict[str, Any]] = None
+    features: Optional[Dict[str, Any]] = None
+    ml_predictions: Optional[List[PredictionResponse]] = None
     
     class Config:
         from_attributes = True
@@ -82,18 +98,6 @@ class QuestionnaireResponse(BaseModel):
     respondent_type: str
     score: Optional[float] = None
     submitted_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-# ML Prediction Schemas
-class PredictionResponse(BaseModel):
-    id: int
-    test_result_id: int
-    prediction_class: str
-    confidence_score: float
-    risk_level: str
-    predicted_at: datetime
     
     class Config:
         from_attributes = True

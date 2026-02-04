@@ -12,6 +12,127 @@ const StudentDetail = () => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Generate feedback from features if detailed_feedback doesn't exist
+  const generateFeedbackFromFeatures = (features, testType, testData) => {
+    const feedback = {
+      errors: [],
+      skipped: [],
+      concerns: []
+    };
+
+    if (!features) return feedback;
+
+    // Check for common issues across all test types
+    const accuracy = features.accuracy || features.recall_accuracy || 100;
+    if (accuracy < 75) {
+      feedback.concerns.push(`Performance below expected level: ${accuracy.toFixed(0)}%`);
+    }
+
+    // Writing test specific - with detailed comparison
+    if (testType === 'writing' && testData) {
+      const prompt = testData.prompt || '';
+      // Check both possible field names
+      const studentText = testData.text_written || testData.student_text || '';
+      
+      if (prompt && studentText) {
+        // Find what words are missing from the end
+        const promptWords = prompt.trim().split(/\s+/);
+        const studentWords = studentText.trim().split(/\s+/);
+        
+        if (studentWords.length < promptWords.length) {
+          const missingWords = promptWords.slice(studentWords.length).join(' ');
+          if (missingWords) {
+            feedback.skipped.push(`Did not write: "${missingWords}"`);
+          }
+          
+          const completionRate = (studentWords.length / promptWords.length * 100);
+          feedback.concerns.push(`Only wrote ${studentWords.length} out of ${promptWords.length} words (${completionRate.toFixed(0)}%)`);
+        }
+      }
+      
+      if (features.spelling_errors > 0) {
+        feedback.errors.push(`${features.spelling_errors} spelling error(s) detected`);
+      }
+      if (features.grammar_errors > 0) {
+        feedback.errors.push(`${features.grammar_errors} grammar error(s) found`);
+      }
+      if (features.letter_reversals > 0) {
+        feedback.errors.push(`${features.letter_reversals} letter reversal(s) detected`);
+      }
+      if (features.inconsistent_spacing > 0) {
+        feedback.concerns.push('Inconsistent spacing between words');
+      }
+    }
+
+    // Reading test specific
+    if (testType === 'reading') {
+      if (features.reversed_letters > 0) {
+        feedback.errors.push(`${features.reversed_letters} letter reversal(s) during reading`);
+      }
+      if (features.letter_confusions > 0) {
+        feedback.errors.push(`${features.letter_confusions} letter confusion(s) observed`);
+      }
+      if (features.reading_speed && features.reading_speed < 100) {
+        feedback.concerns.push(`Reading speed below average (${features.reading_speed.toFixed(0)} wpm)`);
+      }
+      if (features.error_rate > 10) {
+        feedback.concerns.push(`High error rate: ${features.error_rate.toFixed(0)}%`);
+      }
+    }
+
+    // Math test specific - with detailed problem tracking
+    if (testType === 'math' && testData) {
+      const problems = testData.problems || [];
+      const answers = testData.answers || [];
+      
+      if (answers.length < problems.length) {
+        const skippedCount = problems.length - answers.length;
+        feedback.skipped.push(`Did not attempt ${skippedCount} problem(s)`);
+        
+        // Show which problems were skipped - handle object or string
+        for (let i = answers.length; i < Math.min(problems.length, answers.length + 3); i++) {
+          const problem = problems[i];
+          let problemText = '';
+          
+          if (typeof problem === 'object' && problem !== null) {
+            problemText = problem.question || problem.text || problem.problem || JSON.stringify(problem);
+          } else {
+            problemText = String(problem);
+          }
+          
+          if (problemText.length > 50) {
+            problemText = problemText.substring(0, 50) + '...';
+          }
+          feedback.skipped.push(`Problem ${i + 1}: "${problemText}"`);
+        }
+      }
+      
+      if (features.calculation_errors > 0) {
+        feedback.errors.push(`${features.calculation_errors} calculation error(s)`);
+      }
+      if (features.sign_errors > 0) {
+        feedback.errors.push(`${features.sign_errors} sign error(s) (positive/negative confusion)`);
+      }
+      if (features.place_value_errors > 0) {
+        feedback.errors.push(`${features.place_value_errors} place value error(s)`);
+      }
+      if (features.completion_rate && features.completion_rate < 0.8) {
+        feedback.concerns.push(`Only ${(features.completion_rate * 100).toFixed(0)}% of problems completed`);
+      }
+    }
+
+    // Memory/Attention tests
+    if (features.false_recalls > 0) {
+      feedback.errors.push(`${features.false_recalls} false recall(s) or incorrect identification(s)`);
+    }
+
+    if (features.recall_rate && features.recall_rate < 0.8) {
+      feedback.skipped.push(`Only ${(features.recall_rate * 100).toFixed(0)}% of items completed or recalled`);
+    }
+
+    return feedback;
+  };
+
   useEffect(() => {
     loadStudentData();
   }, [id]);
@@ -148,6 +269,72 @@ const StudentDetail = () => {
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="card">
+            <h3>Detailed Feedback</h3>
+            {tests.length > 0 ? (
+              <div className="feedback-section">
+                {(() => {
+                  // Get the most recent test (tests should be sorted by date desc)
+                  const latestTest = tests[0];
+                  const feedback = latestTest.features?.detailed_feedback || 
+                                   generateFeedbackFromFeatures(latestTest.features, latestTest.test_type, latestTest.test_data);
+                  
+                  const hasContent = feedback.errors.length > 0 || feedback.skipped.length > 0 || feedback.concerns.length > 0;
+                  
+                  return (
+                    <>
+                      <p className="feedback-test-info">
+                        📝 Feedback for most recent test: <strong>{latestTest.test_type.charAt(0).toUpperCase() + latestTest.test_type.slice(1)}</strong> 
+                        {' '}({new Date(latestTest.completed_at).toLocaleDateString()})
+                      </p>
+                      
+                      {!hasContent ? (
+                        <p className="feedback-success">✅ Great work! No significant issues detected.</p>
+                      ) : (
+                        <>
+                          {feedback.errors.length > 0 && (
+                            <div className="feedback-group">
+                              <h4 className="feedback-title error">❌ Errors Found</h4>
+                              <ul className="feedback-list">
+                                {feedback.errors.map((error, index) => (
+                                  <li key={index}>{error}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {feedback.skipped.length > 0 && (
+                            <div className="feedback-group">
+                              <h4 className="feedback-title skipped">⏭️ Skipped Items</h4>
+                              <ul className="feedback-list">
+                                {feedback.skipped.map((item, index) => (
+                                  <li key={index}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {feedback.concerns.length > 0 && (
+                            <div className="feedback-group">
+                              <h4 className="feedback-title concern">⚠️ Areas of Concern</h4>
+                              <ul className="feedback-list">
+                                {feedback.concerns.map((concern, index) => (
+                                  <li key={index}>{concern}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              <p>Complete a test to see detailed feedback</p>
+            )}
           </div>
 
           <div className="card">

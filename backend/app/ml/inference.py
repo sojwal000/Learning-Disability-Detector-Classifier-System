@@ -18,16 +18,28 @@ def run_ml_inference(test_result: TestResult, db: Session) -> MLPrediction:
     """
     features = test_result.features
     test_type = test_result.test_type
+    test_data = test_result.test_data
     
     # Determine which model to use
     if test_type == "reading":
         prediction_class, confidence, risk_level = predict_dyslexia(features)
+        feedback = generate_reading_feedback(features, test_data)
     elif test_type == "writing":
         prediction_class, confidence, risk_level = predict_dysgraphia(features)
+        feedback = generate_writing_feedback(features, test_data)
     elif test_type == "math":
         prediction_class, confidence, risk_level = predict_dyscalculia(features)
+        feedback = generate_math_feedback(features, test_data)
     else:
-        raise ValueError(f"Unknown test type: {test_type}")
+        # For other test types
+        prediction_class = "none"
+        confidence = 0.5
+        risk_level = "low"
+        feedback = generate_general_feedback(features, test_data, test_type)
+    
+    # Add feedback to features
+    features_with_feedback = features.copy()
+    features_with_feedback['detailed_feedback'] = feedback
     
     # Create prediction record
     prediction = MLPrediction(
@@ -37,7 +49,7 @@ def run_ml_inference(test_result: TestResult, db: Session) -> MLPrediction:
         prediction_class=prediction_class,
         confidence_score=confidence,
         risk_level=risk_level,
-        features_used=features
+        features_used=features_with_feedback
     )
     
     db.add(prediction)
@@ -246,3 +258,169 @@ def prepare_features_for_model(features: Dict[str, Any], feature_names: list) ->
     for name in feature_names:
         feature_vector.append(features.get(name, 0))
     return np.array(feature_vector).reshape(1, -1)
+
+def generate_writing_feedback(features: Dict[str, Any], test_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate detailed feedback for writing test"""
+    feedback = {
+        "errors": [],
+        "skipped": [],
+        "concerns": []
+    }
+    
+    prompt = test_data.get("prompt", "")
+    # Check both possible field names
+    student_text = test_data.get("text_written", test_data.get("student_text", ""))
+    
+    if not prompt or not student_text:
+        return feedback
+    
+    # Split into words for comparison
+    prompt_words = prompt.strip().split()
+    student_words = student_text.strip().split()
+    
+    # Check what was not written
+    if len(student_words) < len(prompt_words):
+        # Find the missing words at the end
+        missing_words = ' '.join(prompt_words[len(student_words):])
+        if missing_words:
+            feedback["skipped"].append(f'Did not write: "{missing_words}"')
+        
+        # Calculate completion rate
+        completion_rate = (len(student_words) / len(prompt_words) * 100)
+        feedback["concerns"].append(f"Only wrote {len(student_words)} out of {len(prompt_words)} words ({completion_rate:.0f}%)")
+    
+    # Check for errors from features
+    spelling_errors = features.get("spelling_errors", 0)
+    if spelling_errors > 0:
+        feedback["errors"].append(f"{spelling_errors} spelling error(s) detected")
+    
+    grammar_errors = features.get("grammar_errors", 0)
+    if grammar_errors > 0:
+        feedback["errors"].append(f"{grammar_errors} grammar error(s) found")
+    
+    letter_reversals = features.get("letter_reversals", 0)
+    if letter_reversals > 0:
+        feedback["errors"].append(f"{letter_reversals} letter reversal(s) detected")
+    
+    # Check concerns
+    if features.get("inconsistent_spacing", 0) > 0:
+        feedback["concerns"].append("Inconsistent spacing between words")
+    
+    if features.get("writing_speed", 100) < 50:
+        feedback["concerns"].append("Writing speed below expected level")
+    
+    return feedback
+
+def generate_reading_feedback(features: Dict[str, Any], test_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate detailed feedback for reading test"""
+    feedback = {
+        "errors": [],
+        "skipped": [],
+        "concerns": []
+    }
+    
+    # Check accuracy
+    accuracy = features.get("accuracy", 100)
+    if accuracy < 85:
+        feedback["errors"].append(f"Reading accuracy only {accuracy:.0f}% (target: 85%+)")
+    
+    # Check reversals and confusions
+    reversed_letters = features.get("reversed_letters", 0)
+    if reversed_letters > 0:
+        feedback["errors"].append(f"{reversed_letters} letter reversal(s) during reading")
+    
+    letter_confusions = features.get("letter_confusions", 0)
+    if letter_confusions > 0:
+        feedback["errors"].append(f"{letter_confusions} letter confusion(s) observed")
+    
+    # Check reading speed
+    reading_speed = features.get("reading_speed", 100)
+    if reading_speed < 100:
+        feedback["concerns"].append(f"Reading speed below average ({reading_speed:.0f} wpm)")
+    
+    error_rate = features.get("error_rate", 0)
+    if error_rate > 10:
+        feedback["concerns"].append(f"High error rate: {error_rate:.0f}%")
+    
+    return feedback
+
+def generate_math_feedback(features: Dict[str, Any], test_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate detailed feedback for math test"""
+    feedback = {
+        "errors": [],
+        "skipped": [],
+        "concerns": []
+    }
+    
+    answers = test_data.get("answers", [])
+    problems = test_data.get("problems", [])
+    correct_answers = test_data.get("correct_answers", [])
+    
+    # Check completion and show skipped problems
+    if len(answers) < len(problems):
+        skipped_count = len(problems) - len(answers)
+        feedback["skipped"].append(f"{skipped_count} problem(s) not attempted")
+        
+        # Show which specific problems were skipped
+        for i in range(len(answers), min(len(problems), len(answers) + 3)):
+            problem = problems[i]
+            # Handle if problem is an object or string
+            if isinstance(problem, dict):
+                problem_text = problem.get("question", problem.get("text", problem.get("problem", str(problem))))
+            else:
+                problem_text = str(problem)
+            
+            if len(problem_text) > 60:
+                problem_text = problem_text[:60] + "..."
+            feedback["skipped"].append(f'Problem {i+1} not done: "{problem_text}"')
+    
+    # Check error types
+    calculation_errors = features.get("calculation_errors", 0)
+    if calculation_errors > 0:
+        feedback["errors"].append(f"{calculation_errors} calculation error(s)")
+    
+    sign_errors = features.get("sign_errors", 0)
+    if sign_errors > 0:
+        feedback["errors"].append(f"{sign_errors} sign error(s) (positive/negative confusion)")
+    
+    place_value_errors = features.get("place_value_errors", 0)
+    if place_value_errors > 0:
+        feedback["errors"].append(f"{place_value_errors} place value error(s)")
+    
+    # Check concerns
+    accuracy = features.get("accuracy", 100)
+    if accuracy < 75:
+        feedback["concerns"].append(f"Overall accuracy needs improvement: {accuracy:.0f}%")
+    
+    completion_rate = features.get("completion_rate", 1.0)
+    if completion_rate < 0.8:
+        feedback["concerns"].append(f"Only {completion_rate*100:.0f}% of problems completed")
+    
+    return feedback
+
+def generate_general_feedback(features: Dict[str, Any], test_data: Dict[str, Any], test_type: str) -> Dict[str, Any]:
+    """Generate feedback for other test types"""
+    feedback = {
+        "errors": [],
+        "skipped": [],
+        "concerns": []
+    }
+    
+    # Generic feedback based on common features
+    accuracy = features.get("accuracy", features.get("recall_accuracy", 100))
+    if accuracy < 75:
+        feedback["concerns"].append(f"Performance below expected level: {accuracy:.0f}%")
+    
+    errors = features.get("errors", 0)
+    if errors > 0:
+        feedback["errors"].append(f"{errors} incorrect response(s)")
+    
+    false_recalls = features.get("false_recalls", 0)
+    if false_recalls > 0:
+        feedback["errors"].append(f"{false_recalls} false recall(s) or incorrect identification(s)")
+    
+    recall_rate = features.get("recall_rate", features.get("completion_rate", 1.0))
+    if recall_rate < 0.8:
+        feedback["skipped"].append(f"Only {recall_rate*100:.0f}% of items completed or recalled")
+    
+    return feedback

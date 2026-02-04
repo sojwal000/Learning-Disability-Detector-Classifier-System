@@ -210,6 +210,80 @@
   text-transform: capitalize;
 }
 
+/* Feedback Section Styles */
+.feedback-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.feedback-test-info {
+  color: var(--text-light);
+  font-size: 0.9rem;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.feedback-test-info strong {
+  color: var(--primary-color);
+}
+
+.feedback-success {
+  color: #4CAF50;
+  font-weight: 500;
+  padding: 1rem;
+  background-color: rgba(76, 175, 80, 0.1);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.feedback-group {
+  border-left: 4px solid;
+  padding-left: 1rem;
+}
+
+.feedback-group.error {
+  border-color: #F44336;
+}
+
+.feedback-title {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.feedback-title.error {
+  color: #F44336;
+}
+
+.feedback-title.skipped {
+  color: #FF9800;
+}
+
+.feedback-title.concern {
+  color: #FFC107;
+}
+
+.feedback-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style: disc;
+}
+
+.feedback-list li {
+  margin-bottom: 0.5rem;
+  color: var(--text-color);
+  line-height: 1.5;
+}
+
+.feedback-list li:last-child {
+  margin-bottom: 0;
+}
+
 @media (max-width: 768px) {
   .student-header-card {
     flex-direction: column;
